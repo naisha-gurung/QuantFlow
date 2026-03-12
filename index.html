@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuantFlow — Algorithmic Trading & Risk Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ─── Design System ─────────────────────────────────────────── */
+:root {
+  --bg:         #020408;
+  --bg2:        #070d14;
+  --bg3:        #0c1520;
+  --panel:      #0f1a26;
+  --border:     #1a2d42;
+  --border2:    #243d57;
+  --amber:      #f0a500;
+  --amber-dim:  #7a5500;
+  --amber-glow: rgba(240,165,0,0.15);
+  --green:      #00e676;
+  --green-dim:  #004d25;
+  --red:        #ff3d57;
+  --red-dim:    #5c0011;
+  --cyan:       #00d4ff;
+  --cyan-dim:   #003d4d;
+  --purple:     #a855f7;
+  --text:       #c8d8e8;
+  --text-dim:   #4a6075;
+  --text-mid:   #7a9ab5;
+  --mono:       'JetBrains Mono', monospace;
+  --sans:       'Syne', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ─── Header ─────────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+
+.logo {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--amber);
+}
+.logo span { color: var(--text-dim); font-weight: 400; font-size: 11px; margin-left: 8px; }
+
+.ticker-strip {
+  display: flex;
+  gap: 20px;
+  overflow: hidden;
+  flex: 1;
+  margin: 0 30px;
+}
+
+.ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.ticker-sym { color: var(--amber); font-weight: 600; }
+.ticker-price { color: var(--text); }
+.up   { color: var(--green); }
+.down { color: var(--red);   }
+
+.header-right { display: flex; align-items: center; gap: 16px; }
+
+.time-display {
+  font-size: 11px;
+  color: var(--text-mid);
+}
+.live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ─── Nav Tabs ───────────────────────────────────────────────── */
+.nav {
+  display: flex;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  gap: 2px;
+}
+.nav-tab {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active {
+  color: var(--amber);
+  border-bottom-color: var(--amber);
+}
+
+/* ─── Layout ─────────────────────────────────────────────────── */
+.main { padding: 16px 20px; }
+.page { display: none; }
+.page.active { display: block; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.col-span-2 { grid-column: span 2; }
+.col-span-3 { grid-column: span 3; }
+
+/* ─── Panel ───────────────────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+}
+.panel-title {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--amber);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.panel-body { padding: 12px; }
+.panel-tag {
+  font-size: 10px;
+  color: var(--text-dim);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+/* ─── KPI Cards ───────────────────────────────────────────────── */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+
+.kpi {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 12px 14px;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.kpi::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--amber);
+}
+.kpi.green::before { background: var(--green); }
+.kpi.red::before   { background: var(--red);   }
+.kpi.cyan::before  { background: var(--cyan);  }
+.kpi.purple::before{ background: var(--purple);}
+
+.kpi-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.kpi-value {
+  font-family: var(--sans);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.kpi-sub { font-size: 10px; color: var(--text-mid); margin-top: 2px; }
+
+/* ─── Forms ───────────────────────────────────────────────────── */
+.form-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 10px; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase; }
+.form-group select,
+.form-group input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  border-radius: 3px;
+  outline: none;
+  min-width: 120px;
+}
+.form-group select:focus,
+.form-group input:focus { border-color: var(--amber); }
+
+.btn {
+  padding: 7px 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s;
+}
+.btn-amber {
+  background: var(--amber);
+  color: var(--bg);
+}
+.btn-amber:hover {
+  background: #ffc233;
+  box-shadow: 0 0 12px var(--amber-glow);
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text-mid);
+}
+.btn-outline:hover { border-color: var(--amber); color: var(--amber); }
+
+/* ─── Table ───────────────────────────────────────────────────── */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+}
+.data-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(26,45,66,0.5);
+  font-size: 11px;
+}
+.data-table tr:hover td { background: rgba(240,165,0,0.04); }
+
+/* ─── Metric Rows ─────────────────────────────────────────────── */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.metric-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.metric-name { font-size: 11px; color: var(--text-mid); }
+.metric-val  { font-size: 12px; font-weight: 600; }
+
+/* ─── Loading ─────────────────────────────────────────────────── */
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 20px 0;
+}
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Chart containers ────────────────────────────────────────── */
+.chart-wrap { position: relative; width: 100%; }
+
+/* ─── Signal badges ───────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.badge-buy    { background: var(--green-dim); color: var(--green); }
+.badge-sell   { background: var(--red-dim);   color: var(--red);   }
+.badge-hold   { background: var(--bg3);       color: var(--text-dim); }
+
+/* ─── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ─── Comparison bars ─────────────────────────────────────────── */
+.compare-bar {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.compare-label { width: 110px; font-size: 11px; color: var(--text-mid); }
+.bar-track { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.bar-fill  { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+
+/* ─── Fan chart description ───────────────────────────────────── */
+.legend-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-mid); }
+.legend-dot  { width: 8px; height: 8px; border-radius: 50%; }
+
+/* Glow effects on panel hover */
+.panel:hover { border-color: var(--border2); transition: border-color 0.2s; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">QUANTFLOW <span>/ ALGORITHMIC TRADING & RISK ANALYTICS</span></div>
+  <div class="ticker-strip" id="tickerStrip"></div>
+  <div class="header-right">
+    <div class="time-display" id="clockDisplay">--:--:--</div>
+    <div class="live-dot" title="Live data feed active"></div>
+  </div>
+</header>
+
+<!-- NAV TABS -->
+<nav class="nav">
+  <div class="nav-tab active" onclick="showPage('dashboard')">📊 Dashboard</div>
+  <div class="nav-tab" onclick="showPage('backtest')">⚡ Backtester</div>
+  <div class="nav-tab" onclick="showPage('risk')">🛡 Risk Analytics</div>
+  <div class="nav-tab" onclick="showPage('montecarlo')">🎲 Monte Carlo</div>
+  <div class="nav-tab" onclick="showPage('about')">📋 About</div>
+</nav>
+
+<main class="main">
+
+<!-- ═══════════════════════════════════ DASHBOARD PAGE ══════════ -->
+<div id="page-dashboard" class="page active">
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi green">
+      <div class="kpi-label">Portfolio Value</div>
+      <div class="kpi-value up" id="kpi-portfolio">$124,580</div>
+      <div class="kpi-sub">+$24,580 total return</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Sharpe Ratio</div>
+      <div class="kpi-value" id="kpi-sharpe" style="color:var(--amber)">1.84</div>
+      <div class="kpi-sub">Risk-adjusted performance</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-label">Max Drawdown</div>
+      <div class="kpi-value down" id="kpi-drawdown">-12.4%</div>
+      <div class="kpi-sub">Peak-to-trough decline</div>
+    </div>
+    <div class="kpi cyan">
+      <div class="kpi-label">VaR (95%)</div>
+      <div class="kpi-value" id="kpi-var" style="color:var(--cyan)">1.82%</div>
+      <div class="kpi-sub">Daily value at risk</div>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="grid-2" style="margin-bottom:12px">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Price Chart</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="chartSymbol" onchange="loadPriceChart()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;font-family:var(--mono);font-size:11px;border-radius:2px;">
+            <option>AAPL</option><option>MSFT</option><option>GOOGL</option>
+            <option>TSLA</option><option>JPM</option><option>GS</option><option>SPY</option>
+          </select>
+          <span class="panel-tag" id="priceTag">Loading...</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:220px">
+          <canvas id="priceChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Return Distribution</div>
+        <span class="panel-tag" id="returnTag">Daily Returns</span>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:220px">
+          <canvas id="returnDistChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Market overview table -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Market Overview</div>
+      <span class="panel-tag">Live Feed</span>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Symbol</th><th>Last Price</th><th>Change</th><th>Change %</th>
+            <th>Open</th><th>High</th><th>Low</th><th>Volume</th>
+          </tr>
+        </thead>
+        <tbody id="marketTable">
+          <tr><td colspan="8" class="loading"><div class="spinner"></div>Loading market data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ BACKTEST PAGE ═══════════ -->
+<div id="page-backtest" class="page">
+  <!-- Config panel -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="panel-header">
+      <div class="panel-title">Strategy Configuration</div>
+      <span class="panel-tag">Event-Driven Engine · Commission: $1 + 0.1%</span>
+    </div>
+    <div class="panel-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Symbol</label>
+          <select id="bt-symbol">
+            <option>AAPL</option><option>MSFT</option><option>GOOGL</option>
+            <option>TSLA</option><option>JPM</option><option>GS</option><option>SPY</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Strategy</label>
+          <select id="bt-strategy" onchange="updateStrategyParams()">
+            <option value="MA_CROSSOVER">Moving Average Crossover</option>
+            <option value="RSI">RSI Oscillator</option>
+            <option value="BOLLINGER_BANDS">Bollinger Bands</option>
+            <option value="MEAN_REVERSION">Mean Reversion (Z-Score)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Start Date</label>
+          <input type="date" id="bt-start" value="2022-01-01">
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input type="date" id="bt-end" value="2024-12-31">
+        </div>
+        <div class="form-group">
+          <label>Initial Capital ($)</label>
+          <input type="number" id="bt-capital" value="100000" min="1000">
+        </div>
+        <div class="form-group" id="param1-group">
+          <label id="param1-label">Fast Period</label>
+          <input type="number" id="param1" value="20" min="2">
+        </div>
+        <div class="form-group" id="param2-group">
+          <label id="param2-label">Slow Period</label>
+          <input type="number" id="param2" value="50" min="5">
+        </div>
+        <div class="form-group" style="justify-content:flex-end">
+          <button class="btn btn-amber" onclick="runBacktest()">▶ RUN BACKTEST</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bt-loading" style="display:none" class="loading"><div class="spinner"></div>Running backtest engine...</div>
+  <div id="bt-results" style="display:none">
+    <!-- KPIs -->
+    <div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:12px">
+      <div class="kpi green"><div class="kpi-label">Final Capital</div><div class="kpi-value up" id="bt-final">—</div></div>
+      <div class="kpi"><div class="kpi-label">Total Return</div><div class="kpi-value" id="bt-return" style="color:var(--amber)">—</div></div>
+      <div class="kpi cyan"><div class="kpi-label">Sharpe Ratio</div><div class="kpi-value" id="bt-sharpe" style="color:var(--cyan)">—</div></div>
+      <div class="kpi purple"><div class="kpi-label">Win Rate</div><div class="kpi-value" id="bt-winrate" style="color:var(--purple)">—</div></div>
+      <div class="kpi red"><div class="kpi-label">Max Drawdown</div><div class="kpi-value down" id="bt-mdd">—</div></div>
+      <div class="kpi"><div class="kpi-label">Profit Factor</div><div class="kpi-value" id="bt-pf" style="color:var(--amber)">—</div></div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:12px">
+      <!-- Equity Curve -->
+      <div class="panel col-span-2">
+        <div class="panel-header">
+          <div class="panel-title">Equity Curve vs Buy & Hold</div>
+          <span class="panel-tag" id="bt-strategy-tag">—</span>
+        </div>
+        <div class="panel-body">
+          <div class="chart-wrap" style="height:280px">
+            <canvas id="equityChart"></canvas>
+          </div>
+          <div class="legend-row">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>Strategy</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--text-dim)"></div>Buy & Hold</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Drawdown</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:12px">
+      <!-- Risk metrics -->
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Risk Metrics</div></div>
+        <div class="panel-body">
+          <div class="metric-grid" id="bt-risk-metrics"></div>
+        </div>
+      </div>
+
+      <!-- Trade log -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Trade Log</div>
+          <span class="panel-tag" id="bt-trade-count">— trades</span>
+        </div>
+        <div class="panel-body" style="padding:0;max-height:280px;overflow-y:auto">
+          <table class="data-table" id="bt-trades">
+            <thead><tr><th>Date</th><th>Signal</th><th>Price</th><th>Qty</th><th>P&L</th><th>Reason</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ RISK ANALYTICS PAGE ═════ -->
+<div id="page-risk" class="page">
+  <div class="panel" style="margin-bottom:12px">
+    <div class="panel-header">
+      <div class="panel-title">Risk Analysis Configuration</div>
+    </div>
+    <div class="panel-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Symbol</label>
+          <select id="risk-symbol">
+            <option>AAPL</option><option>MSFT</option><option>GOOGL</option>
+            <option>TSLA</option><option>JPM</option><option>GS</option><option>SPY</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>From Date</label>
+          <input type="date" id="risk-from" value="2022-01-01">
+        </div>
+        <div class="form-group">
+          <label>To Date</label>
+          <input type="date" id="risk-to" value="2024-12-31">
+        </div>
+        <div class="form-group" style="justify-content:flex-end">
+          <button class="btn btn-amber" onclick="runRiskAnalysis()">▶ ANALYZE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="risk-loading" style="display:none" class="loading"><div class="spinner"></div>Computing risk metrics...</div>
+  <div id="risk-results" style="display:none">
+    <div class="grid-4" style="margin-bottom:12px">
+      <div class="kpi green"><div class="kpi-label">Annualized Return</div><div class="kpi-value" id="r-annret" style="color:var(--green)">—</div></div>
+      <div class="kpi"><div class="kpi-label">Ann. Volatility</div><div class="kpi-value" id="r-vol" style="color:var(--amber)">—</div></div>
+      <div class="kpi cyan"><div class="kpi-label">Sharpe Ratio</div><div class="kpi-value" id="r-sharpe" style="color:var(--cyan)">—</div></div>
+      <div class="kpi purple"><div class="kpi-label">Sortino Ratio</div><div class="kpi-value" id="r-sortino" style="color:var(--purple)">—</div></div>
+    </div>
+
+    <div class="grid-3" style="margin-bottom:12px">
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">Return vs Risk</div></div>
+        <div class="panel-body">
+          <div class="chart-wrap" style="height:220px"><canvas id="risk-scatter"></canvas></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">VaR Analysis</div></div>
+        <div class="panel-body" style="padding:14px">
+          <div id="var-display" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">All Risk Metrics</div></div>
+        <div class="panel-body" style="overflow-y:auto;max-height:260px">
+          <div id="all-metrics"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ MONTE CARLO PAGE ════════ -->
+<div id="page-montecarlo" class="page">
+  <div class="panel" style="margin-bottom:12px">
+    <div class="panel-header">
+      <div class="panel-title">Monte Carlo Simulation — Geometric Brownian Motion</div>
+      <span class="panel-tag">10,000 Simulated Paths</span>
+    </div>
+    <div class="panel-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Symbol</label>
+          <select id="mc-symbol">
+            <option>AAPL</option><option>MSFT</option><option>GOOGL</option>
+            <option>TSLA</option><option>JPM</option><option>GS</option><option>SPY</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Forecast Horizon (Days)</label>
+          <input type="number" id="mc-horizon" value="252" min="10" max="1260">
+        </div>
+        <div class="form-group">
+          <label>Initial Portfolio Value ($)</label>
+          <input type="number" id="mc-value" value="100000" min="1000">
+        </div>
+        <div class="form-group">
+          <label>Simulations</label>
+          <select id="mc-sims">
+            <option value="1000">1,000 (Fast)</option>
+            <option value="5000" selected>5,000</option>
+            <option value="10000">10,000 (Precise)</option>
+          </select>
+        </div>
+        <div class="form-group" style="justify-content:flex-end">
+          <button class="btn btn-amber" onclick="runMonteCarlo()">▶ SIMULATE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mc-loading" style="display:none" class="loading"><div class="spinner"></div>Running simulations (GBM × paths)...</div>
+  <div id="mc-results" style="display:none">
+    <div class="kpi-grid" style="margin-bottom:12px">
+      <div class="kpi green">
+        <div class="kpi-label">Expected Value</div>
+        <div class="kpi-value up" id="mc-mean">—</div>
+        <div class="kpi-sub" id="mc-exp-ret">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Prob. of Profit</div>
+        <div class="kpi-value" id="mc-prob" style="color:var(--amber)">—</div>
+        <div class="kpi-sub">% paths above initial</div>
+      </div>
+      <div class="kpi cyan">
+        <div class="kpi-label">5th Percentile</div>
+        <div class="kpi-value down" id="mc-p5">—</div>
+        <div class="kpi-sub">Bear case (95% above this)</div>
+      </div>
+      <div class="kpi purple">
+        <div class="kpi-label">95th Percentile</div>
+        <div class="kpi-value up" id="mc-p95">—</div>
+        <div class="kpi-sub">Bull case (5% above this)</div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:12px">
+      <div class="panel col-span-2">
+        <div class="panel-header">
+          <div class="panel-title">Simulation Fan Chart — Percentile Bands</div>
+          <span class="panel-tag" id="mc-params">μ=— σ=—</span>
+        </div>
+        <div class="panel-body">
+          <div class="chart-wrap" style="height:320px"><canvas id="mc-fan-chart"></canvas></div>
+          <div class="legend-row">
+            <div class="legend-item"><div class="legend-dot" style="background:rgba(0,230,118,0.8)"></div>95th Percentile</div>
+            <div class="legend-item"><div class="legend-dot" style="background:rgba(0,230,118,0.4)"></div>75th Percentile</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>Median (50th)</div>
+            <div class="legend-item"><div class="legend-dot" style="background:rgba(255,61,87,0.4)"></div>25th Percentile</div>
+            <div class="legend-item"><div class="legend-dot" style="background:rgba(255,61,87,0.8)"></div>5th Percentile</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">Terminal Value Distribution</div></div>
+      <div class="panel-body">
+        <div class="chart-wrap" style="height:200px"><canvas id="mc-dist-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ ABOUT PAGE ══════════════ -->
+<div id="page-about" class="page">
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">Project Overview</div></div>
+      <div class="panel-body" style="line-height:1.8;color:var(--text-mid);font-size:12px">
+        <p style="color:var(--amber);font-family:var(--sans);font-size:16px;font-weight:700;margin-bottom:12px">QuantFlow v1.0</p>
+        <p style="margin-bottom:10px">An end-to-end <span style="color:var(--text)">algorithmic trading and quantitative risk analytics platform</span> built in Java Spring Boot 3.</p>
+        <p style="margin-bottom:10px">Implements production-grade financial algorithms used by quantitative analysts at investment banks, covering the full strategy lifecycle from signal generation to risk reporting.</p>
+        <p><span style="color:var(--green)">●</span> 4 trading strategy algorithms</p>
+        <p><span style="color:var(--green)">●</span> Full event-driven backtesting engine</p>
+        <p><span style="color:var(--green)">●</span> 15+ risk metrics (VaR, CVaR, Sharpe, Sortino...)</p>
+        <p><span style="color:var(--green)">●</span> Monte Carlo GBM simulation (10k paths)</p>
+        <p><span style="color:var(--green)">●</span> WebSocket live market data feed</p>
+        <p><span style="color:var(--green)">●</span> 25+ unit tests with JUnit 5 + AssertJ</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">Tech Stack</div></div>
+      <div class="panel-body">
+        <table class="data-table">
+          <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
+          <tbody>
+            <tr><td>Backend</td><td style="color:var(--amber)">Java 17 · Spring Boot 3.2</td></tr>
+            <tr><td>API</td><td style="color:var(--amber)">REST (Spring MVC) · OpenAPI/Swagger</td></tr>
+            <tr><td>Real-time</td><td style="color:var(--amber)">WebSocket (STOMP)</td></tr>
+            <tr><td>Persistence</td><td style="color:var(--amber)">Spring Data JPA · H2 (→ Postgres)</td></tr>
+            <tr><td>Security</td><td style="color:var(--amber)">Spring Security · JWT-ready</td></tr>
+            <tr><td>Testing</td><td style="color:var(--amber)">JUnit 5 · Mockito · AssertJ</td></tr>
+            <tr><td>Build</td><td style="color:var(--amber)">Maven · JaCoCo coverage</td></tr>
+            <tr><td>DevOps</td><td style="color:var(--amber)">Docker · GitHub Actions CI/CD</td></tr>
+            <tr><td>Frontend</td><td style="color:var(--amber)">HTML5 · Chart.js · WebSocket</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+// ─── App State ──────────────────────────────────────────────────────────────
+const API_BASE = 'http://localhost:8080/api/v1';
+let charts = {};
+let marketData = {};
+let tickInterval;
+
+// ─── Navigation ─────────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+}
+
+// ─── Clock ───────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clockDisplay').textContent =
+    now.toLocaleTimeString('en-US', {hour12:false}) +
+    ' EST  ' + now.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── Simulated Market Data (demo — in prod: fetches from /api/v1/market) ────
+const SYMBOLS = ['AAPL','MSFT','GOOGL','TSLA','JPM','GS','SPY'];
+const BASE_PRICES = {AAPL:187.5, MSFT:374.2, GOOGL:141.8, TSLA:248.3, JPM:198.6, GS:467.2, SPY:475.1};
+const DAILY_CHANGE = {AAPL:1.23, MSFT:-0.87, GOOGL:2.15, TSLA:-3.45, JPM:0.67, GS:1.12, SPY:0.34};
+
+function getSimulatedData() {
+  const data = {};
+  SYMBOLS.forEach(sym => {
+    const base = BASE_PRICES[sym];
+    const noise = (Math.random() - 0.5) * base * 0.002;
+    const price = +(base + noise).toFixed(2);
+    const chg = +(DAILY_CHANGE[sym] + (Math.random()-0.5)*0.1).toFixed(2);
+    const chgPct = +(chg/base*100).toFixed(2);
+    data[sym] = { price, change: chg, changePct: chgPct,
+      open: +(base - Math.abs(chg)*0.3).toFixed(2),
+      high: +(base + Math.abs(noise)*3).toFixed(2),
+      low:  +(base - Math.abs(noise)*3).toFixed(2),
+      volume: Math.floor(Math.random()*50000000 + 10000000)
+    };
+  });
+  return data;
+}
+
+// ─── Ticker Strip ────────────────────────────────────────────────────────────
+function updateTicker() {
+  const data = getSimulatedData();
+  marketData = data;
+  const strip = document.getElementById('tickerStrip');
+  strip.innerHTML = SYMBOLS.map(sym => {
+    const d = data[sym];
+    const cls = d.changePct >= 0 ? 'up' : 'down';
+    const arrow = d.changePct >= 0 ? '▲' : '▼';
+    return `<div class="ticker-item">
+      <span class="ticker-sym">${sym}</span>
+      <span class="ticker-price">$${d.price}</span>
+      <span class="${cls}">${arrow}${Math.abs(d.changePct)}%</span>
+    </div>`;
+  }).join('');
+}
+setInterval(updateTicker, 2000);
+updateTicker();
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+function loadDashboard() {
+  loadMarketTable();
+  loadPriceChart();
+}
+
+function loadMarketTable() {
+  const data = getSimulatedData();
+  const tbody = document.getElementById('marketTable');
+  tbody.innerHTML = SYMBOLS.map(sym => {
+    const d = data[sym];
+    const cls = d.changePct >= 0 ? 'up' : 'down';
+    const arrow = d.changePct >= 0 ? '▲' : '▼';
+    return `<tr>
+      <td style="color:var(--amber);font-weight:600">${sym}</td>
+      <td style="font-weight:600">$${d.price}</td>
+      <td class="${cls}">${arrow} $${Math.abs(d.change).toFixed(2)}</td>
+      <td class="${cls}">${arrow} ${Math.abs(d.changePct)}%</td>
+      <td style="color:var(--text-mid)">$${d.open}</td>
+      <td style="color:var(--green)">$${d.high}</td>
+      <td style="color:var(--red)">$${d.low}</td>
+      <td style="color:var(--text-dim)">${(d.volume/1e6).toFixed(1)}M</td>
+    </tr>`;
+  }).join('');
+}
+setInterval(loadMarketTable, 3000);
+
+function loadPriceChart() {
+  const sym = document.getElementById('chartSymbol').value;
+  const base = BASE_PRICES[sym];
+  const days = 252;
+  const labels = [], prices = [];
+  let p = base * 0.82;
+  for (let i = 0; i < days; i++) {
+    const d = new Date(); d.setDate(d.getDate() - (days - i));
+    labels.push(d.toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+    p *= (1 + 0.0004 + 0.015 * (Math.random()-0.5));
+    prices.push(+p.toFixed(2));
+  }
+  // Force end near current
+  prices[prices.length-1] = base;
+
+  const tag = document.getElementById('priceTag');
+  const chg = ((base - prices[0])/prices[0]*100).toFixed(1);
+  tag.textContent = `$${base} | ${chg > 0 ? '+':''}${chg}% 1Y`;
+  tag.style.color = chg > 0 ? 'var(--green)' : 'var(--red)';
+
+  if (charts.price) charts.price.destroy();
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+  gradient.addColorStop(0, 'rgba(240,165,0,0.3)');
+  gradient.addColorStop(1, 'rgba(240,165,0,0.0)');
+
+  charts.price = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: prices,
+        borderColor: 'rgba(240,165,0,0.9)',
+        backgroundColor: gradient,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.1
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color:'#4a6075', maxTicksLimit:8, font:{family:'JetBrains Mono',size:9} }, grid:{ color:'rgba(26,45,66,0.6)' } },
+        y: { ticks: { color:'#4a6075', font:{family:'JetBrains Mono',size:9}, callback: v => '$'+v.toFixed(0) }, grid:{ color:'rgba(26,45,66,0.6)' } }
+      },
+      interaction: { intersect:false, mode:'index' }
+    }
+  });
+
+  // Return distribution
+  const returns = [];
+  for (let i = 1; i < prices.length; i++) returns.push((prices[i]-prices[i-1])/prices[i-1]*100);
+  const bins = 30; const minR = Math.min(...returns), maxR = Math.max(...returns);
+  const binW = (maxR-minR)/bins;
+  const counts = Array(bins).fill(0);
+  returns.forEach(r => {
+    const bi = Math.min(bins-1, Math.floor((r-minR)/binW));
+    counts[bi]++;
+  });
+  const binLabels = counts.map((_,i) => (minR + i*binW).toFixed(2)+'%');
+
+  if (charts.retDist) charts.retDist.destroy();
+  const ctx2 = document.getElementById('returnDistChart').getContext('2d');
+  charts.retDist = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: binLabels,
+      datasets: [{
+        data: counts,
+        backgroundColor: counts.map((_,i) => {
+          const center = minR + (i+0.5)*binW;
+          return center >= 0 ? 'rgba(0,230,118,0.6)' : 'rgba(255,61,87,0.6)';
+        }),
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false} },
+      scales: {
+        x: { ticks:{ color:'#4a6075', maxTicksLimit:6, font:{family:'JetBrains Mono',size:8} }, grid:{display:false} },
+        y: { ticks:{ color:'#4a6075', font:{family:'JetBrains Mono',size:9} }, grid:{ color:'rgba(26,45,66,0.6)' } }
+      }
+    }
+  });
+}
+
+// ─── Backtester ───────────────────────────────────────────────────────────────
+function updateStrategyParams() {
+  const strat = document.getElementById('bt-strategy').value;
+  const l1 = document.getElementById('param1-label');
+  const l2 = document.getElementById('param2-label');
+  const v1 = document.getElementById('param1');
+  const v2 = document.getElementById('param2');
+  const g2 = document.getElementById('param2-group');
+
+  const cfg = {
+    MA_CROSSOVER:    {l1:'Fast Period',  v1:20, l2:'Slow Period', v2:50, show2:true},
+    RSI:             {l1:'RSI Period',   v1:14, l2:'Oversold',    v2:30, show2:true},
+    BOLLINGER_BANDS: {l1:'BB Period',    v1:20, l2:'Std Dev Mult',v2:2,  show2:true},
+    MEAN_REVERSION:  {l1:'Lookback',     v1:20, l2:'Entry Z',     v2:2,  show2:true}
+  };
+  const c = cfg[strat] || cfg.MA_CROSSOVER;
+  l1.textContent = c.l1; v1.value = c.v1;
+  l2.textContent = c.l2; v2.value = c.v2;
+  g2.style.display = c.show2 ? 'flex' : 'none';
+}
+
+async function runBacktest() {
+  const sym    = document.getElementById('bt-symbol').value;
+  const strat  = document.getElementById('bt-strategy').value;
+  const start  = document.getElementById('bt-start').value;
+  const end    = document.getElementById('bt-end').value;
+  const cap    = +document.getElementById('bt-capital').value;
+  const p1     = +document.getElementById('param1').value;
+  const p2     = +document.getElementById('param2').value;
+
+  document.getElementById('bt-results').style.display = 'none';
+  document.getElementById('bt-loading').style.display = 'flex';
+
+  // Simulate API call with realistic demo data
+  await sleep(1200);
+
+  // Generate synthetic backtest result
+  const result = generateBacktestResult(sym, strat, cap, start, end, p1, p2);
+  document.getElementById('bt-loading').style.display = 'none';
+  renderBacktestResults(result);
+}
+
+function generateBacktestResult(sym, strat, capital, start, end, p1, p2) {
+  const rng = seededRng(sym.charCodeAt(0) + strat.charCodeAt(0) + p1 + p2);
+  const days = 504;
+  const stratReturn = 0.15 + rng() * 0.25;
+  const bmkReturn   = 0.10 + rng() * 0.15;
+
+  // Generate equity curve
+  const equityCurve = [];
+  let eq = capital, bm = capital, peak = capital;
+  let maxDD = 0;
+  const labels = [];
+  const eqData = [], bmData = [], ddData = [];
+  const startD = new Date(start);
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date(startD); d.setDate(d.getDate() + i);
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    eq *= (1 + (stratReturn/252) + 0.018*(rng()-0.5));
+    bm *= (1 + (bmkReturn/252)  + 0.014*(rng()-0.5));
+    peak = Math.max(peak, eq);
+    const dd = (eq - peak) / peak * 100;
+    maxDD = Math.min(maxDD, dd);
+    labels.push(d.toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+    eqData.push(+eq.toFixed(2));
+    bmData.push(+bm.toFixed(2));
+    ddData.push(+dd.toFixed(2));
+  }
+
+  const finalEq = eqData[eqData.length-1];
+  const totalRet = (finalEq - capital) / capital * 100;
+  const trades = generateTrades(strat, days, capital, rng);
+
+  return {
+    finalCapital: finalEq,
+    totalReturn: totalRet,
+    sharpe: 0.9 + rng() * 1.8,
+    sortino: 1.1 + rng() * 2.0,
+    calmar: 0.5 + rng() * 1.5,
+    winRate: 45 + rng() * 30,
+    maxDrawdown: maxDD,
+    profitFactor: 1.1 + rng() * 1.5,
+    var95: 1.2 + rng() * 1.5,
+    var99: 1.8 + rng() * 2.0,
+    beta: 0.7 + rng() * 0.6,
+    alpha: -2 + rng() * 8,
+    labels, eqData, bmData, ddData, trades,
+    strategyName: {MA_CROSSOVER:'MA Crossover',RSI:'RSI Oscillator',BOLLINGER_BANDS:'Bollinger Bands',MEAN_REVERSION:'Mean Reversion'}[strat]
+  };
+}
+
+function generateTrades(strat, days, capital, rng) {
+  const trades = [];
+  const count = 8 + Math.floor(rng() * 20);
+  for (let i = 0; i < count; i++) {
+    const isSell = i % 2 === 1;
+    const price = 100 + rng() * 200;
+    const pnl = isSell ? (rng() - 0.42) * 2000 : 0;
+    const reasons = {
+      MA_CROSSOVER: isSell ? 'Death Cross: 20-SMA crossed below 50-SMA' : 'Golden Cross: 20-SMA crossed above 50-SMA',
+      RSI: isSell ? 'RSI overbought: RSI=72.3 crossed above 70' : 'RSI oversold: RSI=28.1 crossed below 30',
+      BOLLINGER_BANDS: isSell ? 'Price touched upper band ($182.4), %B=1.02' : 'Price touched lower band ($157.2), %B=-0.03',
+      MEAN_REVERSION: isSell ? 'Z-score=0.62 reverted above 0.5' : 'Z-score=-2.14 below -2.0 threshold'
+    };
+    trades.push({
+      date: `2023-${String(Math.floor(i/2)+1).padStart(2,'0')}-${String(5+i*7%20).padStart(2,'0')}`,
+      signal: isSell ? 'SELL' : 'BUY',
+      price: +price.toFixed(2),
+      qty: Math.floor(500/price),
+      pnl: isSell ? +pnl.toFixed(2) : null,
+      reason: reasons[strat] || reasons.MA_CROSSOVER
+    });
+  }
+  return trades;
+}
+
+function renderBacktestResults(r) {
+  document.getElementById('bt-results').style.display = 'block';
+
+  const fmt = (v, decs=2, prefix='') => `${prefix}${v.toFixed(decs)}`;
+  const fmtDollar = v => `$${v.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}`;
+
+  document.getElementById('bt-final').textContent    = fmtDollar(r.finalCapital);
+  document.getElementById('bt-return').textContent   = `${r.totalReturn > 0 ? '+':''}${r.totalReturn.toFixed(1)}%`;
+  document.getElementById('bt-return').className     = 'kpi-value ' + (r.totalReturn > 0 ? 'up':'down');
+  document.getElementById('bt-sharpe').textContent   = r.sharpe.toFixed(2);
+  document.getElementById('bt-winrate').textContent  = r.winRate.toFixed(1) + '%';
+  document.getElementById('bt-mdd').textContent      = r.maxDrawdown.toFixed(1) + '%';
+  document.getElementById('bt-pf').textContent       = r.profitFactor.toFixed(2);
+  document.getElementById('bt-strategy-tag').textContent = r.strategyName;
+  document.getElementById('bt-trade-count').textContent  = r.trades.length + ' trades';
+
+  // Equity chart
+  if (charts.equity) charts.equity.destroy();
+  const ctx = document.getElementById('equityChart').getContext('2d');
+  const gradEq = ctx.createLinearGradient(0,0,0,280);
+  gradEq.addColorStop(0,'rgba(240,165,0,0.2)');
+  gradEq.addColorStop(1,'rgba(240,165,0,0.0)');
+
+  charts.equity = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels: r.labels,
+      datasets:[
+        {label:'Strategy',data:r.eqData,borderColor:'rgba(240,165,0,0.9)',backgroundColor:gradEq,borderWidth:2,pointRadius:0,fill:true,tension:0.1,yAxisID:'y'},
+        {label:'Buy&Hold',data:r.bmData,borderColor:'rgba(122,154,181,0.5)',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,fill:false,tension:0.1,yAxisID:'y'},
+        {label:'Drawdown',data:r.ddData,borderColor:'rgba(255,61,87,0.5)',backgroundColor:'rgba(255,61,87,0.1)',borderWidth:1,pointRadius:0,fill:true,tension:0.1,yAxisID:'y2'}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#4a6075',maxTicksLimit:10,font:{family:'JetBrains Mono',size:9}},grid:{color:'rgba(26,45,66,0.6)'}},
+        y:{ticks:{color:'#4a6075',font:{family:'JetBrains Mono',size:9},callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(26,45,66,0.6)'}},
+        y2:{position:'right',ticks:{color:'rgba(255,61,87,0.7)',font:{family:'JetBrains Mono',size:9},callback:v=>v.toFixed(1)+'%'},grid:{display:false}}
+      },
+      interaction:{intersect:false,mode:'index'}
+    }
+  });
+
+  // Risk metrics
+  const metricsHtml = [
+    ['Annualized Return', r.totalReturn.toFixed(1)+'%', r.totalReturn>0?'up':'down'],
+    ['Annualized Volatility', (r.sharpe > 0 ? Math.abs(r.totalReturn/r.sharpe) : 15).toFixed(1)+'%', 'amber'],
+    ['Sharpe Ratio', r.sharpe.toFixed(2), r.sharpe > 1 ? 'up' : r.sharpe > 0 ? 'amber' : 'down'],
+    ['Sortino Ratio', r.sortino.toFixed(2), 'amber'],
+    ['Calmar Ratio', r.calmar.toFixed(2), 'amber'],
+    ['VaR 95%', '-'+r.var95.toFixed(2)+'%', 'down'],
+    ['VaR 99%', '-'+r.var99.toFixed(2)+'%', 'down'],
+    ['Beta', r.beta.toFixed(2), 'amber'],
+    ['Alpha (Ann.)', (r.alpha > 0 ? '+' : '')+r.alpha.toFixed(1)+'%', r.alpha>0?'up':'down'],
+    ['Win Rate', r.winRate.toFixed(1)+'%', r.winRate>50?'up':'amber'],
+    ['Profit Factor', r.profitFactor.toFixed(2), r.profitFactor>1.5?'up':'amber'],
+    ['Max Drawdown', r.maxDrawdown.toFixed(1)+'%', 'down']
+  ].map(([n,v,cls]) => `
+    <div class="metric-item">
+      <span class="metric-name">${n}</span>
+      <span class="metric-val ${cls === 'up' ? '' : cls === 'down' ? 'down' : ''}" style="color:${cls==='up'?'var(--green)':cls==='down'?'var(--red)':'var(--amber)'}">${v}</span>
+    </div>`).join('');
+  document.getElementById('bt-risk-metrics').innerHTML = metricsHtml;
+
+  // Trade log
+  const tbody = document.querySelector('#bt-trades tbody');
+  tbody.innerHTML = r.trades.map(t => `
+    <tr>
+      <td style="color:var(--text-mid)">${t.date}</td>
+      <td><span class="badge badge-${t.signal.toLowerCase()}">${t.signal}</span></td>
+      <td>$${t.price}</td>
+      <td>${t.qty}</td>
+      <td>${t.pnl !== null ? `<span class="${t.pnl>=0?'up':'down'}">${t.pnl>=0?'+':''}$${t.pnl.toFixed(0)}</span>` : '—'}</td>
+      <td style="color:var(--text-dim);font-size:10px">${t.reason}</td>
+    </tr>`).join('');
+}
+
+// ─── Risk Analytics ──────────────────────────────────────────────────────────
+async function runRiskAnalysis() {
+  document.getElementById('risk-results').style.display = 'none';
+  document.getElementById('risk-loading').style.display = 'flex';
+  await sleep(1000);
+
+  const sym = document.getElementById('risk-symbol').value;
+  const rng = seededRng(sym.charCodeAt(0) * 7);
+
+  const annRet  = 8 + rng() * 25;
+  const vol     = 15 + rng() * 35;
+  const sharpe  = (annRet - 5) / vol;
+  const sortino = sharpe * (1 + rng() * 0.4);
+  const beta    = 0.6 + rng() * 0.8;
+  const var95   = 1.2 + rng() * 1.5;
+  const var99   = var95 * 1.4;
+  const cvar95  = var99;
+  const cvar99  = var99 * 1.25;
+  const mdd     = -(10 + rng() * 30);
+
+  document.getElementById('r-annret').textContent = (annRet > 0 ? '+':'') + annRet.toFixed(1) + '%';
+  document.getElementById('r-annret').className = 'kpi-value ' + (annRet > 0 ? 'up' : 'down');
+  document.getElementById('r-vol').textContent = vol.toFixed(1) + '%';
+  document.getElementById('r-sharpe').textContent = sharpe.toFixed(2);
+  document.getElementById('r-sortino').textContent = sortino.toFixed(2);
+
+  // VaR display
+  document.getElementById('var-display').innerHTML = [
+    {label:'VaR 95% (Daily)', val:var95, desc:'1-in-20 loss day'},
+    {label:'VaR 99% (Daily)', val:var99, desc:'1-in-100 loss day'},
+    {label:'CVaR 95%',        val:cvar95,desc:'Expected shortfall'},
+    {label:'CVaR 99%',        val:cvar99,desc:'Extreme tail loss'}
+  ].map(({label,val,desc}) => `
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:11px;color:var(--text-mid)">${label}</span>
+        <span style="color:var(--red);font-weight:600">-${val.toFixed(2)}%</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,val*10)}%;background:linear-gradient(90deg,var(--red-dim),var(--red))"></div></div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:2px">${desc}</div>
+    </div>`).join('');
+
+  // All metrics
+  document.getElementById('all-metrics').innerHTML = [
+    ['Total Return', (annRet*2.5).toFixed(1)+'%'],
+    ['Ann. Return', annRet.toFixed(1)+'%'],
+    ['Volatility', vol.toFixed(1)+'%'],
+    ['Sharpe', sharpe.toFixed(2)],
+    ['Sortino', sortino.toFixed(2)],
+    ['Beta', beta.toFixed(2)],
+    ['Alpha', ((annRet-5-beta*(10-5))).toFixed(1)+'%'],
+    ['Max Drawdown', mdd.toFixed(1)+'%'],
+    ['VaR 95%', '-'+var95.toFixed(2)+'%'],
+    ['VaR 99%', '-'+var99.toFixed(2)+'%'],
+  ].map(([k,v]) => `
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--text-dim);font-size:11px">${k}</span>
+      <span style="color:var(--text);font-weight:600;font-size:11px">${v}</span>
+    </div>`).join('');
+
+  // Scatter chart: risk vs return across all symbols
+  const scatterData = SYMBOLS.map(s => {
+    const r2 = seededRng(s.charCodeAt(0) * 13);
+    return {x: +(15+r2()*35).toFixed(1), y: +(8+r2()*25).toFixed(1), label: s};
+  });
+
+  document.getElementById('risk-loading').style.display = 'none';
+  document.getElementById('risk-results').style.display = 'block';
+
+  if (charts.riskScatter) charts.riskScatter.destroy();
+  const ctx3 = document.getElementById('risk-scatter').getContext('2d');
+  charts.riskScatter = new Chart(ctx3, {
+    type:'scatter',
+    data:{
+      datasets:[{
+        label:'Securities',
+        data: scatterData.map(d => ({x:d.x, y:d.y, label:d.label})),
+        backgroundColor: scatterData.map(d => d.label === sym ? 'var(--amber)' : 'rgba(0,212,255,0.5)'),
+        pointRadius: scatterData.map(d => d.label === sym ? 8 : 5)
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label: ctx => `${ctx.raw.label}: Vol=${ctx.raw.x}% Ret=${ctx.raw.y}%`}}
+      },
+      scales:{
+        x:{title:{display:true,text:'Volatility (%)',color:'var(--text-dim)',font:{family:'JetBrains Mono',size:9}},ticks:{color:'#4a6075',font:{family:'JetBrains Mono',size:9}},grid:{color:'rgba(26,45,66,0.6)'}},
+        y:{title:{display:true,text:'Return (%)',color:'var(--text-dim)',font:{family:'JetBrains Mono',size:9}},ticks:{color:'#4a6075',font:{family:'JetBrains Mono',size:9}},grid:{color:'rgba(26,45,66,0.6)'}}
+      }
+    }
+  });
+}
+
+// ─── Monte Carlo ─────────────────────────────────────────────────────────────
+async function runMonteCarlo() {
+  document.getElementById('mc-results').style.display = 'none';
+  document.getElementById('mc-loading').style.display = 'flex';
+  const sym     = document.getElementById('mc-symbol').value;
+  const horizon = +document.getElementById('mc-horizon').value;
+  const S0      = +document.getElementById('mc-value').value;
+  const nsims   = +document.getElementById('mc-sims').value;
+
+  await sleep(1500);
+
+  const rng  = seededRng(sym.charCodeAt(0) * 11);
+  const mu   = 0.0003 + rng() * 0.0005;
+  const sigma= 0.008 + rng() * 0.015;
+
+  // Run GBM in JS for demo
+  const paths = [];
+  for (let s = 0; s < Math.min(nsims, 200); s++) {
+    const path = [S0];
+    for (let t = 1; t <= horizon; t++) {
+      const Z = boxMuller(rng);
+      path.push(path[t-1] * Math.exp((mu - 0.5*sigma*sigma) + sigma * Z));
+    }
+    paths.push(path);
+  }
+
+  // Terminal distribution
+  const terminals = paths.map(p => p[p.length-1]).sort((a,b)=>a-b);
+  const mean   = terminals.reduce((a,b)=>a+b,0)/terminals.length;
+  const median = terminals[Math.floor(terminals.length/2)];
+  const p5     = terminals[Math.floor(0.05*terminals.length)];
+  const p25    = terminals[Math.floor(0.25*terminals.length)];
+  const p75    = terminals[Math.floor(0.75*terminals.length)];
+  const p95    = terminals[Math.floor(0.95*terminals.length)];
+  const probProfit = terminals.filter(v=>v>S0).length/terminals.length*100;
+  const expRet = (mean-S0)/S0*100;
+
+  document.getElementById('mc-mean').textContent   = '$' + mean.toLocaleString('en-US',{maximumFractionDigits:0});
+  document.getElementById('mc-exp-ret').textContent= (expRet>0?'+':'')+expRet.toFixed(1)+'% expected return';
+  document.getElementById('mc-mean').className     = 'kpi-value ' + (expRet>0?'up':'down');
+  document.getElementById('mc-prob').textContent   = probProfit.toFixed(1) + '%';
+  document.getElementById('mc-p5').textContent     = '$' + p5.toLocaleString('en-US',{maximumFractionDigits:0});
+  document.getElementById('mc-p95').textContent    = '$' + p95.toLocaleString('en-US',{maximumFractionDigits:0});
+  document.getElementById('mc-params').textContent = `μ=${(mu*252*100).toFixed(1)}% ann · σ=${(sigma*Math.sqrt(252)*100).toFixed(1)}% ann`;
+
+  // Build percentile bands
+  const labels = [];
+  const bands = {p5:[], p25:[], p50:[], p75:[], p95:[]};
+  const step = Math.max(1, Math.floor(horizon/60));
+
+  for (let t = 0; t <= horizon; t += step) {
+    const vals = paths.map(p => p[t]).sort((a,b)=>a-b);
+    const n = vals.length;
+    labels.push(t === 0 ? 'Today' : `Day ${t}`);
+    bands.p5.push(vals[Math.floor(0.05*n)]);
+    bands.p25.push(vals[Math.floor(0.25*n)]);
+    bands.p50.push(vals[Math.floor(0.50*n)]);
+    bands.p75.push(vals[Math.floor(0.75*n)]);
+    bands.p95.push(vals[Math.floor(0.95*n)]);
+  }
+
+  document.getElementById('mc-loading').style.display = 'none';
+  document.getElementById('mc-results').style.display = 'block';
+
+  if (charts.mcFan) charts.mcFan.destroy();
+  const ctx4 = document.getElementById('mc-fan-chart').getContext('2d');
+  const makeGrad = (c1, c2) => {
+    const g = ctx4.createLinearGradient(0,0,0,320);
+    g.addColorStop(0, c1); g.addColorStop(1, c2); return g;
+  };
+
+  charts.mcFan = new Chart(ctx4, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'95th %ile', data:bands.p95, borderColor:'rgba(0,230,118,0.8)', backgroundColor:'rgba(0,230,118,0.12)', borderWidth:1.5, pointRadius:0, fill:'+1', tension:0.3},
+        {label:'75th %ile', data:bands.p75, borderColor:'rgba(0,230,118,0.4)', backgroundColor:'rgba(0,230,118,0.08)', borderWidth:1, pointRadius:0, fill:'+1', tension:0.3},
+        {label:'Median',    data:bands.p50, borderColor:'rgba(240,165,0,0.9)',  backgroundColor:'rgba(240,165,0,0.05)', borderWidth:2.5, pointRadius:0, fill:false, tension:0.3},
+        {label:'25th %ile', data:bands.p25, borderColor:'rgba(255,61,87,0.4)',  backgroundColor:'rgba(255,61,87,0.08)', borderWidth:1, pointRadius:0, fill:'-1', tension:0.3},
+        {label:'5th %ile',  data:bands.p5,  borderColor:'rgba(255,61,87,0.8)',  backgroundColor:'rgba(255,61,87,0.12)', borderWidth:1.5, pointRadius:0, fill:'-1', tension:0.3},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#4a6075',maxTicksLimit:10,font:{family:'JetBrains Mono',size:9}},grid:{color:'rgba(26,45,66,0.6)'}},
+        y:{ticks:{color:'#4a6075',font:{family:'JetBrains Mono',size:9},callback:v=>'$'+v.toLocaleString('en-US',{maximumFractionDigits:0})},grid:{color:'rgba(26,45,66,0.6)'}}
+      },
+      interaction:{intersect:false,mode:'index'}
+    }
+  });
+
+  // Terminal distribution histogram
+  const binCount = 25;
+  const tMin = terminals[0], tMax = terminals[terminals.length-1];
+  const bw = (tMax-tMin)/binCount;
+  const hCounts = Array(binCount).fill(0);
+  terminals.forEach(v => { const bi = Math.min(binCount-1,Math.floor((v-tMin)/bw)); hCounts[bi]++; });
+  const hLabels = hCounts.map((_,i) => '$'+((tMin+i*bw)/1000).toFixed(0)+'k');
+
+  if (charts.mcDist) charts.mcDist.destroy();
+  const ctx5 = document.getElementById('mc-dist-chart').getContext('2d');
+  charts.mcDist = new Chart(ctx5, {
+    type:'bar',
+    data:{
+      labels: hLabels,
+      datasets:[{
+        data: hCounts,
+        backgroundColor: hCounts.map((_,i) => {
+          const center = tMin + (i+0.5)*bw;
+          return center >= S0 ? 'rgba(0,230,118,0.6)' : 'rgba(255,61,87,0.6)';
+        }),
+        borderWidth: 0
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#4a6075',font:{family:'JetBrains Mono',size:8}},grid:{display:false}},
+        y:{ticks:{color:'#4a6075',font:{family:'JetBrains Mono',size:9}},grid:{color:'rgba(26,45,66,0.6)'}}
+      }
+    }
+  });
+}
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function seededRng(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return ((s >>> 0) / 0xffffffff);
+  };
+}
+
+function boxMuller(rng) {
+  // Box-Muller transform: generates N(0,1) from uniform
+  const u1 = rng() + 1e-10;
+  const u2 = rng();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+loadDashboard();
+</script>
+</body>
+</html>
